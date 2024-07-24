@@ -1,0 +1,65 @@
+---
+- name: Install and configure Docker via SSM on Amazon Linux 2023
+  hosts: all
+  become: yes
+  vars:
+    ansible_connection: aws_ssm
+    ansible_aws_ssm_region: "{{ ansible_aws_ssm_region }}"
+    ansible_aws_ssm_bucket_name: "{{ ansible_aws_ssm_bucket_name }}"
+    ansible_python_interpreter: /usr/bin/python3
+
+  tasks:
+    - name: Install acl package
+      dnf:
+        name: acl
+        state: present
+
+    - name: Install Docker
+      dnf:
+        name:
+          - docker
+        state: present
+
+    - name: Start and enable Docker service
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Get the current user
+      command: whoami
+      register: current_user
+      changed_when: false
+
+    - name: Add user to docker group
+      user:
+        name: "{{ current_user.stdout }}"
+        groups: docker
+        append: yes
+
+    - name: Install libxcrypt-compat
+      dnf:
+        name: libxcrypt-compat
+        state: present
+
+    - name: Install Docker Compose
+      get_url:
+        url: https://github.com/docker/compose/releases/download/1.29.2/docker-compose-Linux-x86_64
+        dest: /usr/local/bin/docker-compose
+        mode: "0755"
+
+    - name: Verify Docker installation
+      command: docker --version
+      register: docker_version
+
+    - name: Print Docker version
+      debug:
+        var: docker_version.stdout
+
+    - name: Verify Docker Compose installation
+      command: docker-compose --version
+      register: docker_compose_version
+
+    - name: Print Docker Compose version
+      debug:
+        var: docker_compose_version.stdout

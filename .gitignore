@@ -1,0 +1,41 @@
+
+# Mac OS Ingnore 
+.DS_Store
+
+# Local .terraform directories
+**/.terraform/*
+
+# .tfstate files
+*.tfstate
+*.tfstate.*
+
+# Crash log files
+crash.log
+
+# Exclude all .tfvars files, which might contain sensitive data, such as
+# password, private keys, and other secrets. These should not be part of version control
+# as they are data-specific to the runtime environment.
+# *.tfvars
+
+# Ignore override files as they are usually used for local Terraform settings.
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Ignore CLI configuration files
+.terraformrc
+terraform.rc
+
+# Ignore any .tfvars files that are generated automatically by terraform
+# *.auto.tfvars
+
+# Ignore the workspace files which may contain secrets
+# .terraform.lock.hcl
+
+# Ignore .env files as they usually contain sensitive environment variables
+.env
+
+# Ignore output files from Terraform plan, these are local to the workspace
+*.tfplan
+*.tfplan.*

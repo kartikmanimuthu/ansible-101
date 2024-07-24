@@ -1,0 +1,80 @@
+---
+- name: Uninstall Docker and Docker Compose from EC2 Instances (Ubuntu 20.04)
+  hosts: all
+  become: true
+  vars:
+    ansible_aws_ssm_bucket_name: ansible-ssm-bucket-stx-demo
+    ansible_aws_ssm_region: us-east-1
+    ansible_connection: aws_ssm
+    ansible_python_interpreter: /usr/bin/python3
+
+  tasks:
+    - name: Stop Docker service
+      service:
+        name: docker
+        state: stopped
+      ignore_errors: yes
+
+    - name: Remove Docker packages
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-compose-plugin
+        state: absent
+        purge: yes
+        autoremove: yes
+
+    - name: Remove Docker APT repository
+      apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: absent
+        filename: docker
+
+    - name: Remove Docker GPG key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: absent
+
+    - name: Remove Docker Compose binary
+      file:
+        path: /usr/local/bin/docker-compose
+        state: absent
+
+    - name: Remove Docker Compose symlink
+      file:
+        path: /usr/bin/docker-compose
+        state: absent
+
+    - name: Remove Docker group
+      group:
+        name: docker
+        state: absent
+
+    - name: Remove all Docker files
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /var/lib/docker
+        - /etc/docker
+
+    - name: Remove Docker socket
+      file:
+        path: /var/run/docker.sock
+        state: absent
+
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Autoremove unnecessary packages
+      apt:
+        autoremove: yes
+
+    - name: Verify Docker removal
+      command: docker --version
+      register: docker_check
+      failed_when: docker_check.rc == 0
+      changed_when: false

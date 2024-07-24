@@ -1,0 +1,10 @@
+[defaults]
+host_key_checking = False
+retry_files_enabled = False
+collections_path = ~/.ansible/collections:/usr/share/ansible/collections
+
+[ssh_connection]
+scp_if_ssh = smart
+
+[connection.aws_ssm]
+region = us-east-1  # Specify your AWS region

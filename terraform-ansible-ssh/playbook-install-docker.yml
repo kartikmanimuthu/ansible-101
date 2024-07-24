@@ -1,0 +1,43 @@
+---
+- name: Install Docker and Docker Compose on EC2 Instances (Ubuntu 20.04)
+  hosts: all
+  become: true
+  vars:
+    ansible_user: ubuntu
+    docker_compose_version: "1.29.2"
+    mongodb_container_name: "mongodb"
+    mongodb_port: 27017
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install required packages
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - software-properties-common
+        state: present
+
+    - name: Add Docker official GPG key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker official repository
+      apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+        filename: docker
+
+    - name: Install Docker
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+        state: present

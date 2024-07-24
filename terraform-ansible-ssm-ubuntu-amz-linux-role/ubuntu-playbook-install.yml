@@ -1,0 +1,67 @@
+---
+- name: Install and configure PostgreSQL and Docker via SSM
+  hosts: all
+  become: yes
+  vars:
+    ansible_connection: aws_ssm
+    ansible_aws_ssm_region: "{{ ansible_aws_ssm_region }}"
+    ansible_aws_ssm_bucket_name: "{{ ansible_aws_ssm_bucket_name }}"
+    ansible_python_interpreter: /usr/bin/python3
+
+    # PostgreSQL role configuration
+    postgresql_version: "12"
+    postgres_users_no_log: true
+    postgresql_databases:
+      - name: exampledb
+    postgresql_users:
+      - name: exampleuser
+        password: securepassword
+        role_attr_flags: CREATEDB,NOSUPERUSER
+
+    # Docker role configuration
+    docker_edition: "ce"
+    docker_package: "docker-{{ docker_edition }}"
+    docker_package_state: present
+    docker_service_state: started
+    docker_service_enabled: true
+    docker_restart_handler_state: restarted
+    docker_install_compose: true
+    docker_compose_version: "1.29.2"
+    docker_users:
+      - "ubuntu" # Change this to the default user for your Ubuntu AMI
+
+  pre_tasks:
+    - name: Install acl package
+      package:
+        name: acl
+        state: present
+
+    - name: Get the current user
+      command: whoami
+      register: current_user
+      changed_when: false
+
+    - name: Set docker_users fact
+      set_fact:
+        docker_users: ["{{ current_user.stdout }}"]
+
+  roles:
+    - geerlingguy.postgresql
+    - geerlingguy.docker
+
+  post_tasks:
+    - name: Verify PostgreSQL installation
+      command: psql --version
+      register: psql_version
+
+    - name: Print PostgreSQL version
+      debug:
+        var: psql_version.stdout
+
+    - name: Verify Docker installation
+      command: docker --version
+      register: docker_version
+
+    - name: Print Docker version
+      debug:
+        var: docker_version.stdout

@@ -1,0 +1,21 @@
+---
+- name: Hello World Playbook
+  hosts: all
+  become: true
+  vars:
+    ansible_user: ec2-user
+
+  tasks:
+    - name: Create a file with "Hello, World!" content
+      copy:
+        content: "Hello, World!"
+        dest: "/home/ec2-user/hello.txt"
+        mode: "0644"
+
+    - name: Display the content of the file
+      command: cat /home/ec2-user/hello.txt
+      register: hello_content
+
+    - name: Print the content
+      debug:
+        var: hello_content.stdout

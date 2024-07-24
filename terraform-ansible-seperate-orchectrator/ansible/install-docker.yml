@@ -1,0 +1,176 @@
+---
+- name: Install Docker and Docker Compose on EC2 Instances (Ubuntu 20.04)
+  hosts: all
+  become: true
+  vars:
+    ansible_connection: aws_ssm
+    ansible_aws_ssm_bucket_name: ansible-ssm-bucket-stx-demo
+    ansible_aws_ssm_region: us-east-1
+    ansible_python_interpreter: /usr/bin/python3
+    docker_compose_version: "1.29.2"
+    mongodb_container_name: "mongodb"
+    mongodb_port: 27017
+
+  handlers:
+    - name: Restart Docker
+      service:
+        name: docker
+        state: restarted
+
+    - name: Start MongoDB container
+      docker_container:
+        name: "{{ mongodb_container_name }}"
+        image: mongo
+        state: started
+        ports:
+          - "{{ mongodb_port }}:27017"
+        volumes:
+          - /data/db:/data/db
+      when: not ansible_check_mode
+
+    - name: Check MongoDB status
+      command: >
+        docker exec {{ mongodb_container_name }} {{ mongodb_shell }} --eval 'db.runCommand({ ping: 1 })'
+      register: mongo_status
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Print MongoDB status
+      debug:
+        msg: "MongoDB status: {{ mongo_status.stdout }}"
+      when: not ansible_check_mode
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install required packages
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - software-properties-common
+        state: present
+
+    - name: Add Docker official GPG key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker official repository
+      apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+        filename: docker
+
+    - name: Install Docker
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+        state: present
+      notify: Restart Docker
+
+    - name: Check Docker service status
+      command: systemctl is-active docker
+      register: docker_status
+      failed_when: false
+      changed_when: false
+
+    - name: Display Docker service status
+      debug:
+        var: docker_status.stdout
+
+    - name: Ensure Docker service is started and enabled
+      service:
+        name: docker
+        state: started
+        enabled: yes
+      register: docker_start_result
+      ignore_errors: yes
+
+    - name: Gather Docker service logs if start failed
+      command: journalctl -xu docker
+      register: docker_logs
+      when: docker_start_result is failed
+
+    - name: Display Docker service logs if start failed
+      debug:
+        var: docker_logs.stdout_lines
+      when: docker_start_result is failed
+
+    - name: Ensure Docker group exists
+      group:
+        name: docker
+        state: present
+
+    - name: Add ubuntu user to the docker group
+      user:
+        name: ubuntu
+        groups: docker
+        append: yes
+      when: not ansible_check_mode
+
+    - name: Download Docker Compose
+      get_url:
+        url: "https://github.com/docker/compose/releases/download/{{ docker_compose_version }}/docker-compose-{{ ansible_system }}-{{ ansible_architecture }}"
+        dest: /usr/local/bin/docker-compose
+        mode: "0755"
+      when: not ansible_check_mode
+
+    - name: Create symlink for Docker Compose
+      file:
+        src: /usr/local/bin/docker-compose
+        dest: /usr/bin/docker-compose
+        state: link
+      when: not ansible_check_mode
+
+    - name: Verify Docker Compose installation
+      command: docker-compose --version
+      register: docker_compose_version_output
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Print Docker Compose version
+      debug:
+        msg: "Docker Compose version: {{ docker_compose_version_output.stdout }}"
+      when: not ansible_check_mode
+
+    - name: Pull MongoDB Docker image
+      docker_image:
+        name: mongo
+        source: pull
+      when: not ansible_check_mode
+
+    - name: Determine MongoDB shell command
+      command: docker exec {{ mongodb_container_name }} which mongosh mongo
+      register: mongo_shell_command
+      changed_when: false
+      failed_when: false
+      when: not ansible_check_mode
+
+    - name: Set MongoDB shell command
+      set_fact:
+        mongodb_shell: "{{ 'mongosh' if 'mongosh' in mongo_shell_command.stdout else 'mongo' }}"
+      when: not ansible_check_mode
+
+    - name: Check if MongoDB container is running
+      command: docker ps -q -f name={{ mongodb_container_name }}
+      register: mongodb_container_status
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Start MongoDB container if not running
+      command: /bin/true
+      notify:
+        - Start MongoDB container
+        - Check MongoDB status
+        - Print MongoDB status
+      when:
+        - not ansible_check_mode
+        - mongodb_container_status is defined
+        - mongodb_container_status.stdout == ""
